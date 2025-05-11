@@ -14,40 +14,41 @@ public class WebhookInitializer implements CommandLineRunner {
 
     @Override
     public void run(String... args) throws Exception {
-        String url = "https://bfhldevapigw.healthrx.co.in/hiring/generateWebhook/JAVA";
+        // 1. Generate Webhook + Token
+        String tokenUrl = "https://bfhldevapigw.healthrx.co.in/hiring/generateWebhook/JAVA";
+
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
 
-        Map<String, String> body = Map.of(
-            "name", "Harshit Nagar",
-            "regNo", "0827EC221022",
-            "email", "harshitnagar221155@acropolis.in"
+        Map<String, String> requestBody = Map.of(
+                "name", "Harshit Nagar",
+                "regNo", "0827EC221022",
+                "email", "harshitnagar221155@acropolis.in"
         );
 
-        HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
+        HttpEntity<Map<String, String>> tokenRequest = new HttpEntity<>(requestBody, headers);
+        ResponseEntity<Map> response = restTemplate.postForEntity(tokenUrl, tokenRequest, Map.class);
 
-        ResponseEntity<Map> response = restTemplate.postForEntity(url, entity, Map.class);
+        if (response.getStatusCode().is2xxSuccessful() && response.getBody() != null) {
+            String webhook = (String) response.getBody().get("webhook");
+            String accessToken = (String) response.getBody().get("accessToken");
 
-        Map<String, String> responseBody = response.getBody();
+            System.out.println("✅ Got Webhook: " + webhook);
+            System.out.println("✅ Got Token: " + accessToken);
 
-        if (responseBody != null && responseBody.containsKey("webhook") && responseBody.containsKey("accessToken")) {
-            String webhookUrl = responseBody.get("webhook");
-            String accessToken = responseBody.get("accessToken");
-
-            System.out.println("✅ Webhook URL: " + webhookUrl);
-            System.out.println("✅ Access Token: " + accessToken);
-
-            submitFinalQuery(webhookUrl, accessToken);
+            // Submit the SQL query
+            submitFinalQuery(webhook, accessToken);
         } else {
-            System.err.println("❌ Failed to retrieve webhook and access token. Response: " + responseBody);
+            System.err.println("❌ Failed to fetch webhook/token.");
         }
-
     }
 
     private void submitFinalQuery(String webhookUrl, String accessToken) {
         HttpHeaders headers = new HttpHeaders();
         headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.setBearerAuth(accessToken);
+
+
+        headers.set("Authorization", accessToken);
 
         String sqlQuery = "SELECT e1.EMP_ID, e1.FIRST_NAME, e1.LAST_NAME, d.DEPARTMENT_NAME, COUNT(e2.EMP_ID) AS YOUNGER_EMPLOYEES_COUNT " +
                 "FROM EMPLOYEE e1 " +
@@ -59,6 +60,11 @@ public class WebhookInitializer implements CommandLineRunner {
         Map<String, String> body = Map.of("finalQuery", sqlQuery);
 
         HttpEntity<Map<String, String>> entity = new HttpEntity<>(body, headers);
-        restTemplate.postForEntity(webhookUrl, entity, String.class);
+
+
+
     }
+
+
+
 }
